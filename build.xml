@@ -1,0 +1,291 @@
+<!--
+/*
+ * $Id: build.xml,v 1.10 2006/06/08 19:46:01 juanca Exp $
+ *
+ * Copyright (c) 1999-2006 Juancarlo Añez
+ * All rights reserved.
+ *
+ * $Id: build.xml,v 1.10 2006/06/08 19:46:01 juanca Exp $
+ *
+ * For usage rights please see the LICENSE.* files that 
+ * come bundled with legal distributions of this resource.
+ *  
+ * Fore more information please email Juancarlo Añez at:
+ *      juanca@suigeneris.org
+ *      juancarlo.anez@gmail.com
+ */
+
+-->
+
+<!-- ANT
+     This is an Ant script for building the JRCS library.
+     Ant is the Jakarta project's build tool.
+	  You can get a copy of Ant from:
+	  
+	      http://jakarta.apache.org/ant/
+
+	  You'll need to also download the optional Ant tasks if you'll be
+     running JavaCC or the JUnit tests (more information below).
+-->
+
+<!-- Jakarta ORO
+     The Jakarta ORO Regexp library is used for RCS keyword management.
+	  You can get a copy of Jakarta ORO from:
+
+       http://jakarta.apache.org/oro/
+
+	  A copy of Jakarta ORO is included in the full distribution of this
+	  library.
+-->
+
+<!-- JavaCC
+     The RCS parser is constructed using the JavaCC compiler compiler.
+	  You can get a copy of JavaCC from:
+	     
+		   http://www.metamata.com/javacc/
+	
+	  JavaCC is not distributable, so you must get a copy of it yourself
+	  if you intend to use it.
+	  Keep in mind that, as distributed, this library does not require 
+	  JavaCC to be compiled because all the JavaCC generated .java files 
+	  are included. 
+	  
+	  If you decide to use JavaCC, please adjust the "javacc.lib.dir" 
+	  property as needed. You'll also need to download the set of optional
+	  tasks for Ant.
+-->
+
+<!-- JUnit
+     The library tests are written for the JUnit Testing Framework. 
+	  For distributions and documentation see:
+	     
+        http://www.junit.org/
+
+     You'll need to place a copy of junit.jar in Ant's lib directory
+     to run the tests.
+-->
+
+<project name="RCS archive parsing and manipulation in Java." default="test" basedir=".">
+
+	<!-- Allow any user specific values to override the defaults -->
+	<property file="${user.home}/build.properties" />
+	<!-- Allow user defaults for this project -->
+	<property file="build.properties" />
+
+	<property name="app.name" value="jrcs" />
+	<property name="version" value="//\\" />
+
+	<property name="src.dir" value="src" />
+	<property name="java.dir" value="${src.dir}/java" />
+	<property name="tests.dir" value="${src.dir}/test" />
+	<property name="lib.dir" value="lib" />
+	<property name="doc.dir" value="doc" />
+	<property name="javadoc" value="${doc.dir}/api" />
+	<property name="target.dir" value="bin" />
+	<property name="dist.dir" value="dist" />
+	<property name="classes" value="ant_classes" />
+	<property name="test.classes" value="test-classes" />
+
+	<property name="javacc.lib.dir" value="${javacc.home}/bin/lib" />
+
+	<!-- <property name="build.compiler" value="jikes" /> -->
+	<!-- <property name="build.compiler" value="classic"/> -->
+
+	<property name="rcs.jar" value="${target.dir}/org.suigeneris.jrcs.rcs-${version}.jar" />
+	<property name="diff.jar" value="${target.dir}/org.suigeneris.jrcs.diff-${version}.jar" />
+	<property name="tests.jar" value="${target.dir}/org.suigeneris.jrcs.tests-${version}.jar" />
+	<property name="junit.jar" value="${lib.dir}/junit-3.8.jar" />
+	<property name="libs" value="${diff.jar};${rcs.jar};${tests.jar};${junit.jar}" />
+
+	<property name="java.source" value="1.4" />
+	<property name="java.target" value="1.4" />
+
+	<available file="${javacc.lib.dir}/JavaCC.zip" property="javacc.present" />
+
+	<patternset id="non.java.sources">
+		<include name="**/*.*" />
+		<exclude name="**/*.java" />
+	</patternset>
+
+	<patternset id="compact">
+		<include name="${target.dir}/*.jar" />
+		<include name="${doc.dir}/**/*" />
+		<include name="LICENSE*" />
+		<include name="*.html" />
+		<include name="*.txt" />
+		<include name="*.xml" />
+		<include name="*.properties" />
+		<include name="*.css" />
+		<exclude name="**/TEST-*" />
+	</patternset>
+
+	<patternset id="full">
+		<patternset refid="compact" />
+		<include name="${src.dir}/**/*" />
+		<include name="${tests.dir}/**/*" />
+	</patternset>
+
+	<target name="prepare">
+		<mkdir dir="${classes}" />
+		<mkdir dir="${test.classes}" />
+		<mkdir dir="${target.dir}" />
+		<mkdir dir="${dist.dir}" />
+		<copy todir="${classes}">
+			<fileset dir="${java.dir}">
+				<patternset refid="non.java.sources" />
+			</fileset>
+		</copy>
+		<copy todir="${test.classes}">
+			<fileset dir="${tests.dir}">
+				<patternset refid="non.java.sources" />
+			</fileset>
+		</copy>
+	</target>
+
+	<target name="tidy">
+		<delete dir="${classes}" />
+	</target>
+
+	<target name="clean" depends="tidy">
+		<delete dir="${javadoc}" />
+		<delete dir="${dist.dir}" />
+		<delete dir="${target.dir}" />
+		<delete dir="${test.classes}" />
+
+		<delete file="${diff.jar}" />
+		<delete file="${rcs.jar}" />
+		<delete file="${tests.jar}" />
+	</target>
+
+	<target name="diff" depends="prepare">
+		<javac srcdir="${java.dir}" destdir="${classes}" classpath="${libs}" debug="on" optimize="on" deprecation="on" source="${java.source}" target="${java.target}">
+			<include name="**/jrcs/diff/**/*.java" />
+			<include name="**/jrcs/util/**/*.java" />
+			<exclude name="**/*Test*.class" />
+		</javac>
+
+		<jar jarfile="${diff.jar}" basedir="${classes}">
+			<include name="org/suigeneris/jrcs/diff/**" />
+			<include name="org/suigeneris/jrcs/util/**" />
+			<exclude name="**/*Test*.class" />
+		</jar>
+	</target>
+
+	<target name="parser" if="javacc.present" >
+		<javacc target="${java.dir}/org/suigeneris/jrcs/rcs/parse/ArchiveParser.jj" 
+			    outputdirectory="${java.dir}/org/suigeneris/jrcs/rcs/parse" 
+			    javacchome="${javacc.lib.dir}" 
+			    optimizetokenmanager="true" />
+		<echo message="parser built" />
+	</target>
+
+	<target name="rcs" depends="prepare,diff,parser">
+		<javac srcdir="${java.dir}" destdir="${classes}" classpath="${libs};classes" debug="on" optimize="on" deprecation="on" source="${java.source}" target="${java.target}">
+			<include name="**/jrcs/rcs/**/*.java" />
+			<exclude name="**/*Test*.class" />
+		</javac>
+
+		<jar jarfile="${rcs.jar}" basedir="${classes}">
+			<include name="org/suigeneris/jrcs/rcs/**" />
+			<exclude name="**/*Test*.class" />
+		</jar>
+	</target>
+
+	<target name="tests" depends="prepare,diff,rcs">
+		<javac srcdir="${tests.dir}" destdir="${test.classes}" classpath="${libs};${classes}" debug="on" optimize="on" deprecation="on" source="${java.source}" target="${java.target}">
+			<include name="**/*.java" />
+		</javac>
+
+		<jar jarfile="${tests.jar}" basedir="${test.classes}">
+			<include name="**/*" />
+		</jar>
+	</target>
+
+	<target name="libs" depends="diff,rcs">
+	</target>
+
+	<target name="test" depends="tests">
+		<junit printsummary="yes" haltonerror="true">
+			<classpath>
+				<pathelement path="${libs}" />
+				<pathelement location="${libs}/*.jar" />
+			</classpath>
+
+			<formatter type="plain" />
+
+			<test name="org.suigeneris.jrcs.AllTests" haltonfailure="yes" todir="${target.dir}">
+				<!-- <formatter type="plain" usefile="no" /> -->
+			</test>
+		</junit>
+	</target>
+
+	<target name="javadoc" depends="libs">
+		<mkdir dir="${javadoc}" />
+		<javadoc 
+			packagenames="org.suigeneris.jrcs.*" 
+			sourcepath="${java.dir}" 
+			destdir="${javadoc}" 
+			classpath="${libs};classes" 
+			author="true" 
+			version="true" 
+			private="yes" 
+			overview="${java.dir}/org/suigeneris/jrcs/overview.html" 
+			windowtitle="${app.name} API" 
+			doctitle="${app.name}" 
+			bottom="Copyright &#169; 1999-2006 Juancarlo A&#241;ez, Caracas, Venezuela.&lt;br&gt;
+				     Some rights reserved&lt;br&gt;.
+                     &lt;a href='http://www.suigeneris.org/jrcs'&gt;http://www.suigeneris.org/jrcs&lt;/a&gt;">
+		</javadoc>
+	</target>
+
+	<target name="all" depends="prepare,libs,test,javadoc" />
+
+	<target name="compact.dist" depends="all">
+		<property name="tarfile" value="${dist.dir}/jrcs-${version}.tar" />
+		<delete file="${tarfile}" />
+
+		<tar tarfile="${tarfile}" basedir="${basedir}">
+			<patternset refid="compact" />
+		</tar>
+
+		<delete file="${tarfile}.gz" />
+		<gzip zipfile="${tarfile}.gz" src="${tarfile}" />
+
+		<delete file="${tarfile}" />
+
+		<property name="zipfile" value="${dist.dir}/jrcs-${version}.zip" />
+		<zip zipfile="${zipfile}" basedir="." update="false">
+			<patternset refid="compact" />
+		</zip>
+
+	</target>
+
+	<target name="full.dist" depends="all">
+		<mkdir dir="${dist.dir}" />
+		<property name="full.tarfile" value="${dist.dir}/jrcs-full-${version}.tar" />
+		<property name="full.zipfile" value="${dist.dir}/jrcs-full-${version}.zip" />
+		<delete file="${full.tarfile}" />
+
+		<tar tarfile="${full.tarfile}" basedir="${basedir}">
+			<include name="${src.dir}/**/*" />
+			<include name="${target.dir}/*" />
+			<include name="${doc.dir}/**/*" />
+		</tar>
+
+		<delete file="${full.tarfile}.gz" />
+		<gzip zipfile="${full.tarfile}.gz" src="${full.tarfile}" />
+
+		<delete file="${full.tarfile}" />
+
+		<zip zipfile="${full.zipfile}" basedir="${basedir}" update="false">
+			<patternset refid="full" />
+		</zip>
+	</target>
+
+	<target name="dist" depends="compact.dist,full.dist" />
+
+	<target name="changelog">
+		<cvschangelog destfile="changelog.xml" />
+	</target>
+</project>
+

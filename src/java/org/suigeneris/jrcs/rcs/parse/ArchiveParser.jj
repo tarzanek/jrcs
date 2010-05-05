@@ -1,0 +1,488 @@
+/*
+ * Copyright (c) 1999-2007 Juancarlo Añez
+ * All rights reserved.
+ *
+ * $Id: ArchiveParser.jj,v 1.4 2007-03-15 16:53:54 juanca Exp $
+ *
+ * For usage rights please see the LICENSE.* files that 
+ * come bundled with legal distributions of this resource.
+ *  
+ * Fore more information please email Juancarlo Añez at:
+ *      juanca@suigeneris.org
+ *      juancarlo.anez@gmail.com
+ */
+
+options {
+COMMON_TOKEN_ACTION=false;
+CHOICE_AMBIGUITY_CHECK=2;
+BUILD_PARSER=true;
+BUILD_TOKEN_MANAGER=true;
+DEBUG_TOKEN_MANAGER=false;
+CACHE_TOKENS=false;
+DEBUG_LOOKAHEAD=false;
+DEBUG_PARSER=false;
+ERROR_REPORTING=false;
+FORCE_LA_CHECK=true;
+IGNORE_CASE=false;
+JAVA_UNICODE_ESCAPE=false;  // RCS files are plain ASCII
+LOOKAHEAD=1;
+OTHER_AMBIGUITY_CHECK=1;
+SANITY_CHECK=true;
+STATIC=false;
+UNICODE_INPUT=true;
+USER_CHAR_STREAM=true;
+USER_TOKEN_MANAGER=false;
+}
+
+PARSER_BEGIN(ArchiveParser)
+
+package org.suigeneris.jrcs.rcs.parse;
+
+import java.util.Map;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.io.FileReader;
+
+import org.suigeneris.jrcs.rcs.*;
+import org.suigeneris.jrcs.rcs.impl.*;
+
+
+/**
+ * Parses an RCS/CVS style version control archive into an Archive.
+ * This class is NOT thread safe.
+ * 
+ * @author <a href="mailto:juanco@suigeneris.org">Juanco Anez</a>
+ * @version $Revision: 1.4 $ $Date: 2007-03-15 16:53:54 $
+ * @see Archive
+ */
+public class ArchiveParser 
+{
+  static final String ident = "RCS ArchiveParser Parser $version$:";
+/*
+  public static void main(String args[]) {
+    ArchiveParser parser;
+    if (args.length == 0)
+    {
+      System.out.println(ident + "  Reading from standard input . . .");
+      parser = new ArchiveParser(System.in);
+    }
+    else if (args.length == 1)
+    {
+      System.out.println(ident + "  Reading from file " + args[0] + " . . .");
+      try
+      {
+        parser = new ArchiveParser(new FileReader(args[0]));
+      }
+      catch (java.io.FileNotFoundException e)
+      {
+        System.out.println(ident + "  File " + args[0] + " not found.");
+        return;
+      }
+    }
+    else
+    {
+      System.out.println(ident+"  Usage is one of:");
+      System.out.println("         java ArchiveParser < inputfile");
+      System.out.println("OR");
+      System.out.println("         java ArchiveParser inputfile");
+      return;
+    }
+    parser.parse();
+  }
+*/
+
+  public static void load(Archive arc, CharStream input) throws ParseException
+  {
+      ArchiveParser parser = new ArchiveParser(input);
+      parser.archive(arc);
+  }
+
+  public static void load(Archive arc, String fname) throws FileNotFoundException, ParseException
+  {
+    load(arc, new FastCharStream(new FileReader(fname) ));
+  }
+
+  public void parse()
+  {
+    try
+    {
+      archive(null);
+      System.out.println("RCS ArchiveParser Parser version 1.1:  RCS ArchiveParser parsed successfully.");
+    }
+    catch (ParseException e)
+    {
+      System.out.println("RCS ArchiveParser Parser version 1.1:  Encountered errors during parse.");
+    }
+  }
+
+}
+PARSER_END(ArchiveParser)
+
+<DEFAULT,PRE_DELTA> SKIP : /* WHITE SPACE */
+{
+  " "
+| "\n"
+| "\t"
+| "\r"
+| "\f"
+}
+
+
+<DEFAULT> TOKEN : /* keywords */
+{
+ < ACCESS: "access" >
+|
+ < AUTHOR: "author" >
+|
+ < BRANCH: "branch" >
+|
+ < BRANCHES: "branches" >
+|
+ < COMMENT: "comment" >
+|
+ < DATE: "date" >
+|
+ < DESC: "desc" >
+|
+ < EXPAND: "expand" >
+|
+ < HEAD : "head" >
+|
+ < LOCKS: "locks" >
+|
+ < LOG: "log" >
+|
+ < NEXT: "next" >
+|
+ < STATE: "state">
+|
+ < STRICT: "strict">
+|
+ < SYMBOLS: "symbols" >
+|
+ < TEXT: "text" >
+}
+
+<DEFAULT> TOKEN :
+{
+  < ID:  (<DIGIT>|".")? <IDCHAR> (<IDCHAR>|<DIGIT>|".")*>
+|
+  < SYM: (<DIGIT>)* <IDCHAR> (<IDCHAR>|<DIGIT>)* >
+|
+  < #IDCHAR:
+      ["A"-"Z","a"-"z","-","_"]
+  >
+|
+  < #DIGIT: ["0"-"9"]  >
+|
+  < NUM: ( <DIGIT> )+ >
+|
+  < STRING: "@" ( ~["@"] | "@@" )* "@" >
+}
+
+/**
+* PARSER STARTS HERE
+*/
+
+void archive(Archive arc) :
+{
+   ArchiveParseAdapter adapter = new ArchiveParseAdapter(arc);
+}
+{
+    admin(adapter)
+  ( delta(adapter) )*
+    desc(arc)
+  ( text(adapter) )*
+    <EOF>
+}
+
+void admin(ArchiveParseAdapter  arc) :
+{}
+{
+     head(arc)
+   [ branch(arc.archive) ]
+     access(arc.archive)
+     symbols(arc.archive)
+     locks(arc.archive)
+     optionals(arc)
+}
+
+void optionals(ArchiveParseAdapter arc) :
+{}
+{
+   ( comment(arc.archive)
+   | expand(arc.archive)
+   | newPhrase(arc.getPhrases())
+   )*
+}
+
+void newPhrases(Map map) :
+{}
+{
+ ( newPhrase(map) )*
+}
+
+void head(ArchiveParseAdapter arc)    :
+{
+    Version v;
+}
+{ <HEAD> [ v = version() { arc.setHead(v); } ]   ";"
+}
+
+void branch(Archive arc)  :
+{ Version v;
+}
+{ <BRANCH> [ v = version() { arc.setBranch(v); } ] ";"
+}
+
+void access(Archive arc)  :
+{
+    String name;
+}
+{ <ACCESS> ( name = id() { arc.addUser(name);} )* ";"
+}
+
+void symbols(Archive arc) :
+{
+    String  s;
+    Version v;
+}
+{ <SYMBOLS> ( s = sym() ":" v = version() { arc.addSymbol(s, v); }
+            )* ";"
+}
+
+void locks(Archive arc)   :
+{
+    String  name;
+    Version v;
+}
+{ <LOCKS> ( name = id() ":" v = version() { arc.addLock(name, v);} )* ";"
+[<STRICT> ";" {arc.setStrictLocking(true); } ]
+}
+
+void comment(Archive arc) :
+{ String s; }
+{ <COMMENT> [ s = string() {arc.setComment(s);} ] ";"
+}
+
+void expand(Archive arc) :
+{String s;}
+{ <EXPAND> [ s = string() {arc.setExpand(s);} ] ";"
+}
+
+void newPhrase(Map map) :
+{ String key;
+  String value;
+  StringBuffer values = new StringBuffer();
+ }
+{ key = id()
+  ( value = word() { values.append(" " + value); }
+  )*
+  ";"
+  { if (map != null) map.put(key, values.toString()); }
+}
+
+String word():
+{ String result, right; }
+{  
+   result = simpleWord() [ right = range() { result = result + right; } ]
+   {return result;}
+}
+
+String simpleWord() :
+{
+    String  result;
+    Version v;
+}
+{
+ (
+ result = id()
+ |
+ v = version() { result = v.toString(); }
+ |
+ result = string()
+ )
+ { return result; }
+}
+
+String range() :
+{
+    String rightSide;
+}
+{
+    ":" rightSide = simpleWord()
+    { return ":" + rightSide; }
+}
+
+void desc(Archive arc) :
+{ String s; }
+{
+    <DESC> s = string() { arc.setDesc(s); }
+}
+
+void delta(ArchiveParseAdapter arc)   :
+{
+    Version   v;
+    Node      node;
+    int[]     d;
+    String    s;
+    String name = "";
+}
+{
+     v = version()
+     { node = arc.newNode(v); }
+    <DATE>     d   = date() { node.setDate(d);   }    ";"
+    <AUTHOR>   name = authorName()  { node.setAuthor(name);} ";"
+    <STATE>    [ s = id() { node.setState(s);   } ] ";"
+    <BRANCHES> ( v = version() { node.addBranch(arc.newBranchNode(v));  } )* ";"
+    <NEXT>     [ v = version() { node.setRCSNext(arc.newNode(v));} ]  ";"
+     newPhrases(node.getPhrases())
+}
+
+void text(ArchiveParseAdapter arc) :
+{
+  Version v;
+  Node node;
+  String log;
+  String txt;
+}
+{
+    v = version()
+    {
+      node = arc.getNode(v);
+    }
+
+    <LOG> log = string()
+    {
+      node.setLog(log);
+    }
+    newPhrases(node.getPhrases()) 
+
+    <TEXT> txt = string()
+    {
+       node.setText(txt);
+    }
+}
+
+String id()      : 
+  {Token t; } 
+  
+{ 
+   	(
+		t = <ID> 
+   	)
+   	{ return t.image; } 
+}
+
+String authorId()      : 
+  {Token t; } 
+  
+{ 
+   	(
+		t = <ID> 
+		|
+		/* This is because in RCS keywords and not reserved words, 
+		   so they must be admited wherever an id is expected. In particular,
+		   the RCS format does not impose restrictions on what an author
+		   name is (it probably asumes *nix restrictions), so keywords
+		   and names with spaces must be admited as valid values for 
+		   the author section.
+		   
+		   Example:
+		     author: log; 
+		*/
+		t = <ACCESS>
+		|
+		t = <AUTHOR>
+		|
+		t = <BRANCH>
+		|
+		t = <BRANCHES>
+		|
+		t = <COMMENT>
+		|
+		t = <DATE>
+		|
+		t = <DESC>
+		|
+		t = <EXPAND>
+		|
+		t = <HEAD>
+		|
+		t = <LOCKS>
+		|
+		t = <LOG>
+		|
+		t = <NEXT>
+		|
+		t = <STATE>
+		|
+		t = <STRICT>
+		|
+		t = <SYMBOLS>
+		|
+		t = <TEXT>
+   	)
+   	{ return t.image; } 
+}
+
+String authorName() : 
+{ 
+	String s;
+	String name = ""; }
+{
+	(s  = authorId()   { name += " "+ s; } )+    
+	{ return name.trim(); }
+}
+
+String sym()     :
+{
+  Token t;
+}
+{
+  ( t = <SYM>
+  |
+    t = <ID>
+  )
+  { return t.image; }
+}
+
+Version version() :
+{
+  Version v;
+  int   n, r;
+}
+{
+  n = num()
+  { v = new Version(n); }
+  ( "." n = num() { v.__addBranch(n); } )*
+  { return v; }
+}
+
+int[] date() :
+{
+  int[] n = new int[6];
+}
+{
+  n[0] = num() "."
+  n[1] = num() "."
+  n[2] = num() "."
+  n[3] = num() "."
+  n[4] = num() "."
+  n[5] = num()
+  {return n; }
+}
+
+int num() : { Token t; } {t = <NUM> { return Integer.parseInt(t.image);} }
+
+String string()  :
+{Token t;}
+{
+  t = <STRING> { 
+    return Archive.unquoteString(t.image); 
+    //return t.image;
+  }
+}
+
+
